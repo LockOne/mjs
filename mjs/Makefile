@@ -6,7 +6,7 @@ BUILD_DIR = build
 R ?= $(abspath $(REPO_ROOT))
 RD ?= docker run -v $(R):$(R) -w $(CURDIR)
 DOCKER_GCC ?= $(RD) docker.cesanta.com/gcc
-DOCKER_CLANG ?= $(RD) docker.cesanta.com/clang
+CC?=gcc
 
 include $(SRCPATH)/mjs_sources.mk
 
@@ -74,13 +74,13 @@ CFLAGS += $(COMMON_CFLAGS)
 # NOTE: we compile straight from sources, not from the single amalgamated file,
 # in order to make sure that all sources include the right headers
 $(PROG): $(TOP_SOURCES) $(TOP_HEADERS) $(BUILD_DIR)
-	$(DOCKER_CLANG) clang $(CFLAGS) $(CPPFLAGS) $(TOP_SOURCES) -o $(PROG)
+	$(CC) $(CFLAGS) $(CPPFLAGS) $(TOP_SOURCES) -o $(PROG)
 
 $(BUILD_DIR):
 	mkdir -p $@
 
 $(BUILD_DIR)/%.o: %.c $(TOP_HEADERS)
-	$(CLANG) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 COMMON_TEST_FLAGS = -W -Wall -I. -I$(REPO_ROOT) -g3 -O0 $(COMMON_CFLAGS) $< $(TESTUTIL_FILES) -DMJS_MEMORY_STATS
 
@@ -97,7 +97,7 @@ include $(REPO_ROOT)/common.mk
 #
 # Now, there is a higher level function: compile_test_with_opt, which takes the
 # optimization flag to use, binary name component, and it declares a rule for
-# both clang and for gcc with given optimization flags (by means of the
+# both CC and for gcc with given optimization flags (by means of the
 # aforementioned compile_test_with_compiler). And there are more higher level
 # function which add more flags, etc etc.
 #
@@ -127,22 +127,22 @@ TEST_VARIANTS =
 
 # params:
 #
-# 1: binary name component, e.g. "clang_O1_offset_4_whatever_else"
+# 1: binary name component, e.g. "CC_O1_offset_4_whatever_else"
 # 2: docker image to run compiler and binary in
-# 3: full path to compiler, like "/usr/bin/clang-3.6" or "/usr/bin/gcc"
+# 3: full path to compiler, like "/usr/bin/CC-3.6" or "/usr/bin/gcc"
 # 4: compiler flags
 define compile_test
 $(BUILD_DIR)/unit_test_$1: tests/unit_test.c mjs.c $(TESTUTIL_FILES) $(BUILD_DIR)
 	@echo BUILDING $$@ with $2[$3], flags: "'$4'"
-	$(RD) --entrypoint $3 $2 $$(COMMON_TEST_FLAGS) $4 -ldl -lm -o $$@
-	$(RD) --entrypoint ./$$@ $2
+	#$(RD) --entrypoint $3 $2 $$(COMMON_TEST_FLAGS) $4 -ldl -lm -o $$@
+	#$(RD) --entrypoint ./$$@ $2
 
 TEST_VARIANTS += $(BUILD_DIR)/unit_test_$1
 endef
 
 # params:
-# 1: compiler to use, like "clang" or "gcc"
-# 2: binary name component, typically the same as compiler: "clang" or "gcc"
+# 1: compiler to use, like "CC" or "gcc"
+# 2: binary name component, typically the same as compiler: "CC" or "gcc"
 # 3: additional compiler flags
 define compile_test_with_compiler
 $(eval $(call compile_test,$3,$1,$2,$4))
@@ -153,8 +153,8 @@ endef
 # 2: binary name component, like "O0" or whatever
 # 3: additional compiler flags
 define compile_test_with_opt
-$(eval $(call compile_test_with_compiler,docker.cesanta.com/clang,/usr/bin/clang-3.6,clang_$2,$(ASAN_CFLAGS) $1 $3))
-$(eval $(call compile_test_with_compiler,docker.cesanta.com/clang,/usr/bin/clang-3.6,clang_32bit_$2,-m32 $1 $3))
+$(eval $(call compile_test_with_compiler,docker.cesanta.com/CC,/usr/bin/clang-3.6,clang_$2,$(ASAN_CFLAGS) $1 $3))
+$(eval $(call compile_test_with_compiler,docker.cesanta.com/CC,/usr/bin/clang-3.6,clang_32bit_$2,-m32 $1 $3))
 $(eval $(call compile_test_with_compiler,docker.cesanta.com/gcc,/usr/bin/gcc,gcc_$2,$1 $3))
 endef
 
@@ -217,12 +217,12 @@ difftest:
 
 ci-test: $(BUILD_DIR) vc98 vc2017 test_full
 
-$(PROG).exe: $(BUILD_DIR) $(TOP_HEADERS) mjs.c
-	$(RD) docker.cesanta.com/vc98 wine cl mjs.c $(CLFLAGS) $(MFLAGS) /Fe$@
+#$(PROG).exe: $(BUILD_DIR) $(TOP_HEADERS) mjs.c
+	#$(RD) docker.cesanta.com/vc98 wine cl mjs.c $(CLFLAGS) $(MFLAGS) /Fe$@
 
 TEST_SOURCES = tests/unit_test.c $(TESTUTIL_FILES)
 CLFLAGS = /DWIN32_LEAN_AND_MEAN /MD /O1 /TC /W2 /WX /I.. /I. /DNDEBUG /DMJS_MEMORY_STATS
-vc98 vc2017: mjs.c mjs.h
-	$(RD) docker.cesanta.com/$@ wine cl $(TEST_SOURCES) $(CLFLAGS) /Fe$@.exe
-	$(RD) docker.cesanta.com/$@ wine ./$@.exe
+#vc98 vc2017: mjs.c mjs.h
+#	$(RD) docker.cesanta.com/$@ wine cl $(TEST_SOURCES) $(CLFLAGS) /Fe$@.exe
+#	$(RD) docker.cesanta.com/$@ wine ./$@.exe
 

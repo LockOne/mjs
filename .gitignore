@@ -1,0 +1,6 @@
+
+*.swp
+mjs/build
+mjs/*.bc
+mjs/*.o
+
